@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>音乐播放器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+        }
+
+        .player {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 400px;
+            margin: 20px;
+        }
+
+        audio {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .lyrics-container {
+            height: 300px;
+            overflow-y: auto;
+            margin: 20px 0;
+            padding: 10px;
+            background: #fff;
+            border-radius: 5px;
+        }
+
+        .lyric-line {
+            margin: 5px 0;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .lyric-line.active {
+            color: #000;
+            font-weight: bold;
+            transform: scale(1.05);
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 5px;
+            background: #ddd;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #2196F3;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+</style>
+</head>
+<body>
+    <div class="player">
+        <h2 id="song-title">当前歌曲</h2>
+        <audio id="audio-player" controls>
+            <source src="test.mp3" type="audio/mpeg">
+            您的浏览器不支持音频播放
+        </audio>
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="controls">
+            <button onclick="togglePlay()">播放/暂停</button>
+            <span id="current-time">00:00</span> / 
+            <span id="duration">00:00</span>
+        </div>
+        <div class="lyrics-container" id="lyrics-container"></div>
+    </div>
+
+    <script>
+        const audio = document.getElementById('audio-player');
+        const lyricsContainer = document.getElementById('lyrics-container');
+        let lyrics = [];
+
+        // 加载歌词
+        fetch('lyrics.lrc')
+            .then(response => response.text())
+            .then(parseLyrics)
+            .catch(error => console.error('歌词加载失败:', error));
+
+        function parseLyrics(text) {
+            lyrics = text.split('\n').map(line => {
+                const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
+                if (match) {
+                    const minutes = parseInt(match[1]);
+                    const seconds = parseFloat(match[2]);
+                    return {
+                        time: minutes * 60 + seconds,
+                        text: match[3].trim()
+                    };
+                }
+                return null;
+            }).filter(Boolean);
+
+            // 创建歌词DOM
+            lyricsContainer.innerHTML = lyrics.map(lyric => 
+                `<p class="lyric-line">${lyric.text}</p >`
+            ).join('');
+        }
+
+        // 播放进度更新
+        audio.addEventListener('timeupdate', () => {
+            // 更新进度条
+            const progress = (audio.currentTime / audio.duration) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+
+            // 更新时间显示
+            document.getElementById('current-time').textContent = 
+                formatTime(audio.currentTime);
+            document.getElementById('duration').textContent = 
+                formatTime(audio.duration);
+
+            // 高亮当前歌词
+            const currentTime = audio.currentTime;
+            const lyricLines = document.getElementsByClassName('lyric-line');
+            
+            let currentIndex = 0;
+            for (let i = 0; i < lyrics.length; i++) {
+                if (currentTime >= lyrics[i].time) {
+                    currentIndex = i;
+                }
+            }
+
+            Array.from(lyricLines).forEach((line, index) => {
+                line.classList.toggle('active', index === currentIndex);
+            });
+
+            // 自动滚动歌词
+            if (lyricLines[currentIndex]) {
+                lyricLines[currentIndex].scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }
+        });
+
+        // 点击进度条跳转
+        document.getElementById('progress-container').addEventListener('click', e => {
+            const rect = e.target.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            audio.currentTime = percent * audio.duration;
+        });
+
+        function togglePlay() {
+            audio.paused ? audio.play() : audio.pause();
+        }
+
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            seconds = Math.floor(seconds % 60);
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>
